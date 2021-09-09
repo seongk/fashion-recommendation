@@ -1,4 +1,5 @@
 .idea
 code/logs_exp1
 data/img
+!data/img/.gitkeep
 __pycache__
