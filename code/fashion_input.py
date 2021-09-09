@@ -6,6 +6,9 @@ import cv2
 import numpy as np
 import pandas as pd
 from hyper_parameters import *
+import os
+
+CURRENT_DIR = os.getcwd()
 
 shuffle = True
 localization = FLAGS.is_localization
@@ -25,16 +28,20 @@ def get_image(path, x1, y1, x2, y2):
     :param y2:
     :return: a numpy array with dimensions [img_row, img_col, img_depth]
     '''
-    img = cv2.imread(path)
-    if localization is True:
-        if img is None or img.shape[0] == 0 or img.shape[1] == 0:
-            img = np.zeros((1, IMG_ROWS, IMG_COLS, 0))
-        img = cv2.resize(img, (IMG_ROWS, IMG_COLS))
-        assert img.shape == (IMG_ROWS, IMG_COLS, 3)
-    else:
-        img = cv2.resize(img, (IMG_ROWS, IMG_COLS))
+    img = cv2.imread(f'{CURRENT_DIR}/../data/{path}')
+    if img is not None:
+        if localization is True:
+            if img is None or img.shape[0] == 0 or img.shape[1] == 0:
+                img = np.zeros((1, IMG_ROWS, IMG_COLS, 0))
+            img = cv2.resize(img, (IMG_ROWS, IMG_COLS))
+            assert img.shape == (IMG_ROWS, IMG_COLS, 3)
+        else:
+            img = cv2.resize(img, (IMG_ROWS, IMG_COLS))
 
-    img = img.reshape(1, IMG_ROWS, IMG_COLS, 3)
+        img = img.reshape(1, IMG_ROWS, IMG_COLS, 3)
+    else:
+        print(f"{path} results in null img")
+        pass
 
     return img
 
@@ -58,6 +65,7 @@ def load_data_numpy(df):
     adjusted_std = 1.0/np.sqrt(IMG_COLS * IMG_ROWS * 3)
 
     for i in range(num_images):
+        print(i)
         img = get_image(image_path_array[i], x1=x1[i, 0], y1=y1[i, 0], x2=x2[i, 0], y2=y2[i, 0])
         flip_indicator = np.random.randint(low=0, high=2)
         if flip_indicator == 0:

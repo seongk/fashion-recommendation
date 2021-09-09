@@ -4,6 +4,7 @@ This is the main training profile.
 from fashion_input import *
 import os
 import tensorflow as tf
+tf.compat.v1.disable_eager_execution()
 import time
 from datetime import datetime
 from simple_resnet import *
@@ -45,43 +46,43 @@ class Train:
     def loss(self, logits, bbox, labels, bbox_labels):
         labels = tf.cast(labels, tf.int64)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels, name='cross_entropy_per_example')
-        mse_loss = tf.reduce_mean(tf.losses.mean_squared_error(bbox_labels, bbox), name='mean_square_loss')
-        cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+        mse_loss = tf.reduce_mean(input_tensor=tf.compat.v1.losses.mean_squared_error(bbox_labels, bbox), name='mean_square_loss')
+        cross_entropy_mean = tf.reduce_mean(input_tensor=cross_entropy, name='cross_entropy')
         return cross_entropy_mean + mse_loss
 
     def top_k_error(self, predictions, labels, k):
         batch_size = predictions.get_shape().as_list()[0]
-        in_top1 = tf.to_float(tf.nn.in_top_k(predictions, labels, k=1))
-        num_correct = tf.reduce_sum(in_top1)
+        in_top1 = tf.cast(tf.nn.in_top_k(predictions=predictions, targets=labels, k=1), dtype=tf.float32)
+        num_correct = tf.reduce_sum(input_tensor=in_top1)
         return (batch_size - num_correct) / float(batch_size)
 
 
     def placeholders(self):
-        self.image_placeholder = tf.placeholder(dtype=tf.float32, shape=[TRAIN_BATCH_SIZE,
+        self.image_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[TRAIN_BATCH_SIZE,
                                                                         IMG_ROWS, IMG_COLS, 3])
-        self.label_placeholder = tf.placeholder(dtype=tf.int32, shape=[TRAIN_BATCH_SIZE])
-        self.bbox_placeholder = tf.placeholder(dtype=tf.float32, shape=[TRAIN_BATCH_SIZE, 4])
+        self.label_placeholder = tf.compat.v1.placeholder(dtype=tf.int32, shape=[TRAIN_BATCH_SIZE])
+        self.bbox_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[TRAIN_BATCH_SIZE, 4])
 
-        self.vali_image_placeholder = tf.placeholder(dtype=tf.float32, shape=[VALI_BATCH_SIZE,
+        self.vali_image_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[VALI_BATCH_SIZE,
                                                                 IMG_ROWS, IMG_COLS, 3])
-        self.vali_label_placeholder = tf.placeholder(dtype=tf.int32, shape=[VALI_BATCH_SIZE])
-        self.vali_bbox_placeholder = tf.placeholder(dtype=tf.float32, shape=[VALI_BATCH_SIZE, 4])
+        self.vali_label_placeholder = tf.compat.v1.placeholder(dtype=tf.int32, shape=[VALI_BATCH_SIZE])
+        self.vali_bbox_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[VALI_BATCH_SIZE, 4])
 
-        self.lr_placeholder = tf.placeholder(dtype=tf.float32, shape=[])
-        self.dropout_prob_placeholder = tf.placeholder(dtype=tf.float32, shape=[])
+        self.lr_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[])
+        self.dropout_prob_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[])
 
 
     def train_operation(self, global_step, total_loss, top1_error):
-        tf.summary.scalar('learning_rate', self.lr_placeholder)
-        tf.summary.scalar('train_loss', total_loss)
-        tf.summary.scalar('train_top1_error', top1_error)
+        tf.compat.v1.summary.scalar('learning_rate', self.lr_placeholder)
+        tf.compat.v1.summary.scalar('train_loss', total_loss)
+        tf.compat.v1.summary.scalar('train_top1_error', top1_error)
 
         ema = tf.train.ExponentialMovingAverage(0.95, global_step)
         train_ema_op = ema.apply([total_loss, top1_error])
-        tf.summary.scalar('train_top1_error_avg', ema.average(top1_error))
-        tf.summary.scalar('train_loss_avg', ema.average(total_loss))
+        tf.compat.v1.summary.scalar('train_top1_error_avg', ema.average(top1_error))
+        tf.compat.v1.summary.scalar('train_loss_avg', ema.average(total_loss))
 
-        opt = tf.train.MomentumOptimizer(learning_rate=self.lr_placeholder, momentum=0.9)
+        opt = tf.compat.v1.train.MomentumOptimizer(learning_rate=self.lr_placeholder, momentum=0.9)
         train_op = opt.minimize(total_loss, global_step=global_step)
         return train_op, train_ema_op
 
@@ -94,10 +95,10 @@ class Train:
         top1_error_avg = ema2.average(top1_error)
         loss_val = ema.average(loss)
         loss_val_avg = ema2.average(loss)
-        tf.summary.scalar('val_top1_error', top1_error_val)
-        tf.summary.scalar('val_top1_error_avg', top1_error_avg)
-        tf.summary.scalar('val_loss', loss_val)
-        tf.summary.scalar('val_loss_avg', loss_val_avg)
+        tf.compat.v1.summary.scalar('val_top1_error', top1_error_val)
+        tf.compat.v1.summary.scalar('val_top1_error_avg', top1_error_avg)
+        tf.compat.v1.summary.scalar('val_loss', loss_val)
+        tf.compat.v1.summary.scalar('val_loss_avg', loss_val_avg)
         return val_op
 
 
@@ -142,7 +143,7 @@ class Train:
                                          reuse=True, keep_prob_placeholder=self.dropout_prob_placeholder)
 
 
-        reg_losses = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
+        reg_losses = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.REGULARIZATION_LOSSES)
         loss = self.loss(logits, bbox, self.label_placeholder, self.bbox_placeholder)
         full_loss = tf.add_n([loss] + reg_losses)
 
@@ -156,17 +157,17 @@ class Train:
         train_op, train_ema_op = self.train_operation(global_step, full_loss, top1_error)
         val_op = self.validation_op(validation_step, vali_top1_error, vali_loss)
 
-        saver = tf.train.Saver(tf.all_variables())
-        summary_op = tf.summary.merge_all()
-        init = tf.initialize_all_variables()
-        sess = tf.Session()
+        saver = tf.compat.v1.train.Saver(tf.compat.v1.all_variables())
+        summary_op = tf.compat.v1.summary.merge_all()
+        init = tf.compat.v1.initialize_all_variables()
+        sess = tf.compat.v1.Session()
 
         if FLAGS.continue_train_ckpt is True:
             print('Model restored!')
             saver.restore(sess, FLAGS.ckpt_path)
         else:
             sess.run(init)
-        summary_writer = tf.summary.FileWriter(TRAIN_DIR, sess.graph)
+        summary_writer = tf.compat.v1.summary.FileWriter(TRAIN_DIR, sess.graph)
 
         step_list = []
         train_error_list = []
@@ -193,7 +194,7 @@ class Train:
                                                             batch_data=batch_data,
                                                             batch_label=batch_label,
                                                             batch_bbox=batch_bbox)
-                    vali_summ = tf.Summary()
+                    vali_summ = tf.compat.v1.Summary()
                     vali_summ.value.add(tag='full_validation_error',
                                     simple_value=top1_error_value.astype(np.float))
                     vali_summ.value.add(tag='full_validation_loss',
@@ -256,7 +257,7 @@ class Train:
                                                             batch_data=batch_data,
                                                             batch_label=batch_label,
                                                             batch_bbox=batch_bbox)
-                    vali_summ = tf.Summary()
+                    vali_summ = tf.compat.v1.Summary()
                     vali_summ.value.add(tag='full_validation_error',
                                     simple_value=top1_error_value.astype(np.float))
                     vali_summ.value.add(tag='full_validation_loss',
@@ -315,24 +316,24 @@ class Train:
         print('Training finished!!')
 
     def test(self):
-        self.test_image_placeholder = tf.placeholder(dtype=tf.float32, shape=[25, IMG_ROWS,
+        self.test_image_placeholder = tf.compat.v1.placeholder(dtype=tf.float32, shape=[25, IMG_ROWS,
                                                                               IMG_COLS, 3])
-        self.test_label_placeholder = tf.placeholder(dtype=tf.int32, shape=[25])
+        self.test_label_placeholder = tf.compat.v1.placeholder(dtype=tf.int32, shape=[25])
 
         ##########################
         # Build test graph
-        logits, global_pool = inference(self.test_image_placeholder, n=FLAGS.num_residual_blocks, reuse=False,
+        logits, bbx_output, global_pool,  = inference(self.test_image_placeholder, n=FLAGS.num_residual_blocks, reuse=False,
                                               keep_prob_placeholder=self.dropout_prob_placeholder)
         predictions = tf.nn.softmax(logits)
         test_error = self.top_k_error(predictions, self.test_label_placeholder, 1)
 
-        saver = tf.train.Saver(tf.all_variables())
-        sess = tf.Session()
+        saver = tf.compat.v1.train.Saver(tf.compat.v1.all_variables())
+        sess = tf.compat.v1.Session()
         saver.restore(sess, FLAGS.test_ckpt_path)
         print('Model restored!')
         ##########################
 
-        test_df = prepare_df(FLAGS.test_path, usecols=['image_path', 'category', 'x1', 'y1', 'x2', 'y2'], shuffle=False)
+        test_df = prepare_df(FLAGS.test_path, usecols=['image_path', 'category', 'x1', 'y1', 'x2', 'y2', 'x1_modified', 'y1_modified', 'x2_modified', 'y2_modified'], shuffle=False)
         test_df = test_df.iloc[-25:, :]
 
         prediction_np = np.array([]).reshape(-1, 6)
@@ -345,7 +346,7 @@ class Train:
                     print('Test_error = ', test_error_value)
 
             df_batch = test_df.iloc[step*25 : (step+1)*25, :]
-            test_batch, test_label = load_data_numpy(df_batch)
+            test_batch, test_label, text_bbox = load_data_numpy(df_batch)
 
             prediction_batch_value, test_error_value = sess.run([predictions, test_error],
                                                                feed_dict={
@@ -356,9 +357,15 @@ class Train:
             prediction_np = np.concatenate((prediction_np, prediction_batch_value), axis=0)
             fc_np = np.concatenate((fc_np, fc_batch_value))
 
-        print('Predictin array has shape ', fc_np.shape)
+        print('Prediction array has shape ', fc_np.shape)
         np.save(FLAGS.fc_path, fc_np[-5:,:])
+        print("finihsed testing and saved")
 
 train = Train()
-train.train()
-train.test()
+#train.train()
+# train.test()
+
+
+import numpy as np
+result = np.load(FLAGS.fc_path)
+print(result)
